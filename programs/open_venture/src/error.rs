@@ -8,4 +8,18 @@ pub enum ErrorCode {
         CompanyNameTooLong,
     #[msg("Company bio cannot be longer than 280 characters long")]
     CompanyBioTooLong,
+    #[msg("Owner must be the same as the company profile owner")]
+    OwnerMustBeTheSameAsCompanyProfileOwner,
+    #[msg("Repayment deadline must be greater than current timestamp")]
+    RepaymentDeadlineInThePast,
+    #[msg("Target amount must be greater than 0")]
+    TargetAmountMustBeGreaterThanZero,
+    #[msg("Interest rate must be greater than 0")]
+    InterestRateMustBeGreaterThanZero,
+    #[msg("Funding round id is required")]
+    FundingRoundIdRequired,
+    #[msg("Funding round id cannot be longer than 36 characters")]
+    FundingRoundIdTooLong,
+    #[msg("An active funding round already exists for this company")]
+    ActiveFundingRoundExists,
 }

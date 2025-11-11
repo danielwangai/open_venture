@@ -9,7 +9,9 @@ pub fn handler(ctx: Context<CreateCompanyProfile>, name: String, bio: String, ) 
     require!(name.len() <= 32, ErrorCode::CompanyNameTooLong);
     // bio is not required, but if it is provided, it must be less than 280 characters long
     require!(bio.len() <= 280, ErrorCode::CompanyBioTooLong);
+    ctx.accounts.company_profile.owner = ctx.accounts.owner.key();
     ctx.accounts.company_profile.name = name;
+    ctx.accounts.company_profile.active_funding_round = None;
 
     if bio.len() > 0 {
         ctx.accounts.company_profile.bio = bio;

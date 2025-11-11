@@ -22,4 +22,20 @@ pub mod open_venture {
     ) -> Result<()> {
         instructions::create_company_profile::handler(ctx, name, bio)
     }
+
+    pub fn create_funding_round(
+        ctx: Context<CreateFundingRound>,
+        round_id: String,
+        target_amount: u64,
+        interest_rate: u64,
+        repayment_deadline: u64,
+    ) -> Result<()> {
+        instructions::create_funding_round::handler(
+            ctx,
+            round_id,
+            target_amount,
+            interest_rate,
+            repayment_deadline,
+        )
+    }
 }
