@@ -38,4 +38,8 @@ pub mod open_venture {
             repayment_deadline,
         )
     }
+
+    pub fn fund_company(ctx: Context<FundCompany>, amount: u64) -> Result<()> {
+        instructions::fund_company::handler(ctx, amount)
+    }
 }

@@ -22,4 +22,10 @@ pub enum ErrorCode {
     FundingRoundIdTooLong,
     #[msg("An active funding round already exists for this company")]
     ActiveFundingRoundExists,
+    #[msg("Funding round is not active")]
+    FundingRoundNotActive,
+    #[msg("Funding round company does not match the provided company profile")]
+    FundingRoundCompanyMismatch,
+    #[msg("Deposit amount must be greater than zero")]
+    DepositAmountMustBeGreaterThanZero,
 }

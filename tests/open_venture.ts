@@ -11,6 +11,7 @@ describe("open_venture", () => {
 
   // actors
   const owner1 = anchor.web3.Keypair.generate();
+  const investor = anchor.web3.Keypair.generate();
 
   const program = anchor.workspace.openVenture as Program<OpenVenture>;
 
@@ -369,6 +370,86 @@ describe("open_venture", () => {
       }
 
       assert.fail("expected duplicate active funding round creation to fail");
+    });
+
+    it("allows any wallet to deposit into the funding round vault", async () => {
+      const companyName = `Deposit Co ${Date.now().toString().slice(-6)}`;
+      const companyBio = "Deposit test";
+      const companyProfileAddress = getCompanyProfileAddress(
+        owner1.publicKey,
+        companyName,
+        program.programId
+      );
+      await program.methods
+        .createCompanyProfile(companyName, companyBio)
+        .accounts({
+          owner: owner1.publicKey,
+          companyProfile: companyProfileAddress,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([owner1])
+        .rpc();
+
+      const roundId = `round-${Date.now().toString().slice(-6)}`;
+      const targetAmount = new anchor.BN(300_000_000);
+      const interestRate = new anchor.BN(9);
+      const repaymentDeadline = new anchor.BN(
+        Math.floor(Date.now() / 1000) + 900_000
+      );
+      const fundingRoundAddress = getFundingRoundAddress(
+        companyProfileAddress,
+        roundId,
+        program.programId
+      );
+      const vaultAddress = getFundingRoundVaultAddress(
+        companyProfileAddress,
+        roundId,
+        program.programId
+      );
+
+      await program.methods
+        .createFundingRound(
+          roundId,
+          targetAmount,
+          interestRate,
+          repaymentDeadline
+        )
+        .accounts({
+          owner: owner1.publicKey,
+          companyProfile: companyProfileAddress,
+          fundingRound: fundingRoundAddress,
+          vault: vaultAddress,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([owner1])
+        .rpc();
+
+      await airdrop(investor.publicKey);
+
+      const depositAmount = new anchor.BN(150_000_000);
+      const initialVaultBalance = await program.provider.connection.getBalance(
+        vaultAddress
+      );
+
+      await program.methods
+        .fundCompany(depositAmount)
+        .accounts({
+          investor: investor.publicKey,
+          companyProfile: companyProfileAddress,
+          fundingRound: fundingRoundAddress,
+          vault: vaultAddress,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        })
+        .signers([investor])
+        .rpc();
+
+      const finalVaultBalance = await program.provider.connection.getBalance(
+        vaultAddress
+      );
+      assert.strictEqual(
+        finalVaultBalance - initialVaultBalance,
+        depositAmount.toNumber()
+      );
     });
   });
 
