@@ -234,6 +234,11 @@ describe("open_venture", () => {
         roundId,
         program.programId
       );
+      const vaultAddress = getFundingRoundVaultAddress(
+        companyProfileAddress,
+        roundId,
+        program.programId
+      );
 
       await program.methods
         .createFundingRound(
@@ -246,6 +251,7 @@ describe("open_venture", () => {
           owner: owner1.publicKey,
           companyProfile: companyProfileAddress,
           fundingRound: fundingRoundAddress,
+          vault: vaultAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([owner1])
@@ -300,6 +306,11 @@ describe("open_venture", () => {
         firstRoundId,
         program.programId
       );
+      const firstVaultAddress = getFundingRoundVaultAddress(
+        companyProfileAddress,
+        firstRoundId,
+        program.programId
+      );
 
       await program.methods
         .createFundingRound(
@@ -312,6 +323,7 @@ describe("open_venture", () => {
           owner: owner1.publicKey,
           companyProfile: companyProfileAddress,
           fundingRound: firstFundingRoundAddress,
+          vault: firstVaultAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([owner1])
@@ -319,6 +331,11 @@ describe("open_venture", () => {
 
       const duplicateRoundId = `${firstRoundId}-dup`;
       const duplicateFundingRoundAddress = getFundingRoundAddress(
+        companyProfileAddress,
+        duplicateRoundId,
+        program.programId
+      );
+      const duplicateVaultAddress = getFundingRoundVaultAddress(
         companyProfileAddress,
         duplicateRoundId,
         program.programId
@@ -336,6 +353,7 @@ describe("open_venture", () => {
             owner: owner1.publicKey,
             companyProfile: companyProfileAddress,
             fundingRound: duplicateFundingRoundAddress,
+            vault: duplicateVaultAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([owner1])
@@ -399,6 +417,27 @@ describe("open_venture", () => {
     return PublicKey.findProgramAddressSync(
       [
         anchor.utils.bytes.utf8.encode("funding_round"),
+        companyProfileAddress.toBuffer(),
+        roundIdSeed,
+      ],
+      programID
+    )[0];
+  };
+
+  const getFundingRoundVaultAddress = (
+    companyProfileAddress: PublicKey,
+    id: string,
+    programID: PublicKey
+  ) => {
+    const hexString = crypto
+      .createHash("sha256")
+      .update(id, "utf-8")
+      .digest("hex");
+    const roundIdSeed = Uint8Array.from(Buffer.from(hexString, "hex"));
+
+    return PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("funding_round_vault"),
         companyProfileAddress.toBuffer(),
         roundIdSeed,
       ],

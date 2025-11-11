@@ -1,9 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::hash::hash;
 
-use crate::{
-    constants::ANCHOR_DISCRIMINATOR, error::ErrorCode, CompanyProfile, FundingRound,
-};
+use crate::{constants::ANCHOR_DISCRIMINATOR, error::ErrorCode, CompanyProfile, FundingRound};
 
 pub fn handler(
     ctx: Context<CreateFundingRound>,
@@ -20,17 +18,11 @@ pub fn handler(
 
     // cannot create funding round if there's another active funding round for the same company
     require!(
-        ctx.accounts
-            .company_profile
-            .active_funding_round
-            .is_none(),
+        ctx.accounts.company_profile.active_funding_round.is_none(),
         ErrorCode::ActiveFundingRoundExists
     );
 
-    require!(
-        !round_id.is_empty(),
-        ErrorCode::FundingRoundIdRequired
-    );
+    require!(!round_id.is_empty(), ErrorCode::FundingRoundIdRequired);
     require!(round_id.len() <= 36, ErrorCode::FundingRoundIdTooLong);
     require!(
         target_amount > 0,
@@ -74,5 +66,14 @@ pub struct CreateFundingRound<'info> {
         bump,
     )]
     pub funding_round: Account<'info, FundingRound>,
+    /// CHECK: Vault PDA is derived from company profile and round_id seeds, ensuring uniqueness
+    #[account(
+        init,
+        payer = owner,
+        space = 0,
+        seeds = ["funding_round_vault".as_bytes(), company_profile.key().as_ref(), {hash(round_id.as_bytes()).to_bytes().as_ref()}],
+        bump,
+    )]
+    pub vault: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }
