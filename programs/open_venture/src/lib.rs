@@ -2,12 +2,14 @@ pub mod constants;
 pub mod error;
 pub mod instructions;
 pub mod state;
+pub mod utils;
 
 use anchor_lang::prelude::*;
 
 pub use constants::*;
 pub use instructions::*;
 pub use state::*;
+pub use utils::*;
 
 declare_id!("C6SFwFPjwGPdKHF8yKH9BypyYi5eysVPK7S8WUuvbAiE");
 
@@ -41,5 +43,9 @@ pub mod open_venture {
 
     pub fn fund_company(ctx: Context<FundCompany>, amount: u64) -> Result<()> {
         instructions::fund_company::handler(ctx, amount)
+    }
+
+    pub fn withdraw_funds(ctx: Context<WithdrawFunds>, amount: u64) -> Result<()> {
+        instructions::withdraw_funds::handler(ctx, amount)
     }
 }

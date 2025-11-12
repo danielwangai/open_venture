@@ -17,7 +17,7 @@ describe("open_venture", () => {
 
   before(async () => {
     // airdrop some SOL
-    await airdrop(owner1.publicKey);
+    await airdrop(owner1.publicKey, new anchor.BN(1_000_000_000));
 
     // create a company profile
     const companyName = "Test Company";
@@ -27,13 +27,19 @@ describe("open_venture", () => {
       companyName,
       program.programId
     );
+    const companyTreasuryAddress = getCompanyTreasuryAddress(
+      owner1.publicKey,
+      companyProfileAddress,
+      program.programId
+    );
     await program.methods
       .createCompanyProfile(companyName, companyBio)
       .accounts({
         owner: owner1.publicKey,
         companyProfile: companyProfileAddress,
+        companyTreasury: companyTreasuryAddress,
         systemProgram: anchor.web3.SystemProgram.programId,
-      })
+      } as any)
       .signers([owner1])
       .rpc();
   });
@@ -49,6 +55,11 @@ describe("open_venture", () => {
         companyName,
         program.programId
       );
+      const companyTreasuryAddress = getCompanyTreasuryAddress(
+        owner1.publicKey,
+        companyProfileAddress,
+        program.programId
+      );
 
       // create the company profile
       await program.methods
@@ -56,6 +67,7 @@ describe("open_venture", () => {
         .accounts({
           owner: owner1.publicKey,
           companyProfile: companyProfileAddress,
+          companyTreasury: companyTreasuryAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([owner1])
@@ -77,6 +89,11 @@ describe("open_venture", () => {
         companyName,
         program.programId
       );
+      const companyTreasuryAddress = getCompanyTreasuryAddress(
+        owner1.publicKey,
+        companyProfileAddress,
+        program.programId
+      );
 
       try {
         await program.methods
@@ -84,6 +101,7 @@ describe("open_venture", () => {
           .accounts({
             owner: owner1.publicKey,
             companyProfile: companyProfileAddress,
+            companyTreasury: companyTreasuryAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
           .signers([owner1])
@@ -218,11 +236,17 @@ describe("open_venture", () => {
     let bobsRepaymentDeadline: anchor.BN;
     let bobsFundingRoundAddress: PublicKey;
     let bobsVaultAddress: PublicKey;
+    let bobsCompanyTreasuryAddress: PublicKey;
+
+    // investor
+    let investor: anchor.web3.Keypair;
 
     beforeEach(async () => {
       // Generate a unique owner for each test to avoid conflicts
       bob = anchor.web3.Keypair.generate();
-      await airdrop(bob.publicKey);
+      await airdrop(bob.publicKey, new anchor.BN(1_000_000_000)); // airdrop 1 SOL
+      investor = anchor.web3.Keypair.generate();
+      await airdrop(investor.publicKey, new anchor.BN(10_000_000_000)); // airdrop 10 SOL
 
       // Create a unique company profile for each test
       bobsCompanyName = `Test Co ${Date.now().toString().slice(-6)}`;
@@ -233,13 +257,20 @@ describe("open_venture", () => {
         program.programId
       );
 
+      // bob creates a company profile
+      bobsCompanyTreasuryAddress = getCompanyTreasuryAddress(
+        bob.publicKey,
+        bobsCompanyProfileAddress,
+        program.programId
+      );
       await program.methods
         .createCompanyProfile(bobsCompanyName, bobsCompanyBio)
         .accounts({
           owner: bob.publicKey,
           companyProfile: bobsCompanyProfileAddress,
+          companyTreasury: bobsCompanyTreasuryAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
-        })
+        } as any)
         .signers([bob])
         .rpc();
 
@@ -274,8 +305,19 @@ describe("open_venture", () => {
           fundingRound: bobsFundingRoundAddress,
           vault: bobsVaultAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
-        })
+        } as any)
         .signers([bob])
+        .rpc();
+
+        // investor invests in bob's funding round
+        await program.methods.fundCompany(new anchor.BN(500_000_000)).accounts({
+          investor: investor.publicKey,
+          companyProfile: bobsCompanyProfileAddress,
+          fundingRound: bobsFundingRoundAddress,
+          vault: bobsVaultAddress,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        } as any)
+        .signers([investor])
         .rpc();
     });
 
@@ -345,7 +387,7 @@ describe("open_venture", () => {
     });
 
     it("allows any wallet to deposit into the funding round vault", async () => {
-      await airdrop(investor.publicKey);
+      await airdrop(investor.publicKey, new anchor.BN(1_000_000));
 
       const depositAmount = new anchor.BN(150_000_000);
       const initialVaultBalance = await program.provider.connection.getBalance(
@@ -372,13 +414,42 @@ describe("open_venture", () => {
         depositAmount.toNumber()
       );
     });
+
+    it("allows the company owner to withdraw funds from the funding round vault", async () => {
+      // bob wants to withdraw 0.15 sol that has already been invested
+      const withdrawalAmount = new anchor.BN(150_000_000);
+      const initialVaultBalance = await program.provider.connection.getBalance(bobsVaultAddress);
+      const initialTreasuryBalance = await program.provider.connection.getBalance(bobsCompanyTreasuryAddress);
+      // withdraw
+      await program.methods.withdrawFunds(withdrawalAmount).accounts({
+        owner: bob.publicKey,
+        companyProfile: bobsCompanyProfileAddress,
+        fundingRound: bobsFundingRoundAddress,
+        vault: bobsVaultAddress,
+        companyTreasury: bobsCompanyTreasuryAddress,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      } as any)
+      .signers([bob])
+      .rpc();
+      const finalVaultBalance = await program.provider.connection.getBalance(bobsVaultAddress);
+      const finalTreasuryBalance = await program.provider.connection.getBalance(bobsCompanyTreasuryAddress);
+
+      assert.strictEqual(
+        BigInt(finalVaultBalance),
+        BigInt(initialVaultBalance) - BigInt(withdrawalAmount.toNumber())
+      );
+      assert.strictEqual(
+        BigInt(finalTreasuryBalance),
+        BigInt(initialTreasuryBalance) + BigInt(withdrawalAmount.toNumber())
+      );
+    });
   });
 
   /** Helpers */
-  const airdrop = async (publicKey: anchor.web3.PublicKey) => {
+  const airdrop = async (publicKey: anchor.web3.PublicKey, amount: anchor.BN) => {
     const sig = await program.provider.connection.requestAirdrop(
       publicKey,
-      1_000_000_000 // 1 SOL
+      amount.toNumber() // amount in lamports
     );
     await program.provider.connection.confirmTransaction(sig, "confirmed");
   };
@@ -442,6 +513,21 @@ describe("open_venture", () => {
         anchor.utils.bytes.utf8.encode("funding_round_vault"),
         companyProfileAddress.toBuffer(),
         roundIdSeed,
+      ],
+      programID
+    )[0];
+  };
+
+  const getCompanyTreasuryAddress = (
+    owner: PublicKey,
+    companyProfileAddress: PublicKey,
+    programID: PublicKey
+  ) => {
+    return PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("company_treasury"),
+        owner.toBuffer(),
+        companyProfileAddress.toBuffer(),
       ],
       programID
     )[0];

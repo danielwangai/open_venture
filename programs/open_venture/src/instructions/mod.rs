@@ -7,3 +7,6 @@ pub use create_funding_round::*;
 
 pub mod fund_company;
 pub use fund_company::*;
+
+pub mod withdraw_funds;
+pub use withdraw_funds::*;

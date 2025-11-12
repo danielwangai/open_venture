@@ -28,4 +28,10 @@ pub enum ErrorCode {
     FundingRoundCompanyMismatch,
     #[msg("Deposit amount must be greater than zero")]
     DepositAmountMustBeGreaterThanZero,
+    #[msg("Only the company owner can access vault funds")]
+    UnauthorizedVaultAccess,
+    #[msg("Withdrawal amount must be greater than zero")]
+    WithdrawalAmountMustBeGreaterThanZero,
+    #[msg("Insufficient funds in vault")]
+    InsufficientVaultFunds,
 }

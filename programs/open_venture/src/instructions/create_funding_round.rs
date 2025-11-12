@@ -66,7 +66,16 @@ pub struct CreateFundingRound<'info> {
         bump,
     )]
     pub funding_round: Account<'info, FundingRound>,
-    /// CHECK: Vault PDA is derived from company profile and round_id seeds, ensuring uniqueness
+    /// CHECK: Vault PDA is derived from company profile and round_id seeds, ensuring uniqueness.
+    ///
+    /// # Security Model
+    /// The vault is a Program Derived Address (PDA), which means:
+    /// - Only the program can sign for vault transfers (no external keypair can control it)
+    /// - The vault seeds include the company profile key, ensuring vaults are unique per company
+    /// - To access vault funds, any instruction must:
+    ///   1. Verify the signer is the company owner (via `validate_vault_access` utility)
+    ///   2. Use the correct seeds to derive the vault PDA
+    /// This ensures only the company owner can authorize access to their vault funds.
     #[account(
         init,
         payer = owner,
