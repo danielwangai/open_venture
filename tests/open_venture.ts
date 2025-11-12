@@ -207,137 +207,109 @@ describe("open_venture", () => {
   });
 
   describe("funding round", () => {
-    it("can create a funding round", async () => {
-      const companyName = "Funding Co";
-      const companyBio = "Bio for funding co";
-      const companyProfileAddress = getCompanyProfileAddress(
-        owner1.publicKey,
-        companyName,
+    // Shared test data that will be set up in beforeEach
+    let bob: anchor.web3.Keypair;
+    let bobsCompanyName: string;
+    let bobsCompanyBio: string;
+    let bobsCompanyProfileAddress: PublicKey;
+    let bobsRoundId: string;
+    let bobsTargetAmount: anchor.BN;
+    let bobsInterestRate: anchor.BN;
+    let bobsRepaymentDeadline: anchor.BN;
+    let bobsFundingRoundAddress: PublicKey;
+    let bobsVaultAddress: PublicKey;
+
+    beforeEach(async () => {
+      // Generate a unique owner for each test to avoid conflicts
+      bob = anchor.web3.Keypair.generate();
+      await airdrop(bob.publicKey);
+
+      // Create a unique company profile for each test
+      bobsCompanyName = `Test Co ${Date.now().toString().slice(-6)}`;
+      bobsCompanyBio = "Test Bio";
+      bobsCompanyProfileAddress = getCompanyProfileAddress(
+        bob.publicKey,
+        bobsCompanyName,
         program.programId
       );
+
       await program.methods
-        .createCompanyProfile(companyName, companyBio)
+        .createCompanyProfile(bobsCompanyName, bobsCompanyBio)
         .accounts({
-          owner: owner1.publicKey,
-          companyProfile: companyProfileAddress,
+          owner: bob.publicKey,
+          companyProfile: bobsCompanyProfileAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
-        .signers([owner1])
+        .signers([bob])
         .rpc();
-      const roundId = `round-${Date.now().toString().slice(-6)}`;
-      const targetAmount = new anchor.BN(1_000_000_000);
-      const interestRate = new anchor.BN(10);
-      const repaymentDeadline = new anchor.BN(
+
+      // Create a unique funding round for each test
+      bobsRoundId = `round-${Date.now().toString().slice(-6)}`;
+      bobsTargetAmount = new anchor.BN(1_000_000_000);
+      bobsInterestRate = new anchor.BN(10);
+      bobsRepaymentDeadline = new anchor.BN(
         Math.floor(Date.now() / 1000) + 1_000_000
       );
-      const fundingRoundAddress = getFundingRoundAddress(
-        companyProfileAddress,
-        roundId,
+      bobsFundingRoundAddress = getFundingRoundAddress(
+        bobsCompanyProfileAddress,
+        bobsRoundId,
         program.programId
       );
-      const vaultAddress = getFundingRoundVaultAddress(
-        companyProfileAddress,
-        roundId,
+      bobsVaultAddress = getFundingRoundVaultAddress(
+        bobsCompanyProfileAddress,
+        bobsRoundId,
         program.programId
       );
 
       await program.methods
         .createFundingRound(
-          roundId,
-          targetAmount,
-          interestRate,
-          repaymentDeadline
+          bobsRoundId,
+          bobsTargetAmount,
+          bobsInterestRate,
+          bobsRepaymentDeadline
         )
         .accounts({
-          owner: owner1.publicKey,
-          companyProfile: companyProfileAddress,
-          fundingRound: fundingRoundAddress,
-          vault: vaultAddress,
+          owner: bob.publicKey,
+          companyProfile: bobsCompanyProfileAddress,
+          fundingRound: bobsFundingRoundAddress,
+          vault: bobsVaultAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
-        .signers([owner1])
+        .signers([bob])
         .rpc();
+    });
 
+    it("can create a funding round", async () => {
       const fundingRound = await program.account.fundingRound.fetch(
-        fundingRoundAddress
+        bobsFundingRoundAddress
       );
-      assert.equal(fundingRound.id, roundId);
-      assert.ok(fundingRound.company.equals(companyProfileAddress));
-      assert.ok(fundingRound.targetAmount.eq(targetAmount));
-      assert.ok(fundingRound.interestRate.eq(interestRate));
-      assert.ok(fundingRound.repaymentDeadline.eq(repaymentDeadline));
+      assert.equal(fundingRound.id, bobsRoundId);
+      assert.ok(fundingRound.company.equals(bobsCompanyProfileAddress));
+      assert.ok(fundingRound.targetAmount.eq(bobsTargetAmount));
+      assert.ok(fundingRound.interestRate.eq(bobsInterestRate));
+      assert.ok(fundingRound.repaymentDeadline.eq(bobsRepaymentDeadline));
       assert.strictEqual(fundingRound.isActive, true);
 
       const companyProfile = await program.account.companyProfile.fetch(
-        companyProfileAddress
+        bobsCompanyProfileAddress
       );
       assert.ok(
         companyProfile.activeFundingRound !== null &&
-          companyProfile.activeFundingRound.equals(fundingRoundAddress),
+          companyProfile.activeFundingRound.equals(bobsFundingRoundAddress),
         "company should track the active funding round"
       );
     });
 
     it("rejects creating a funding round when one is already active", async () => {
-      const companyName = `Dup Funding Co ${Date.now().toString().slice(-6)}`;
-      const companyBio = "Duplicate guard";
-      const companyProfileAddress = getCompanyProfileAddress(
-        owner1.publicKey,
-        companyName,
-        program.programId
-      );
-      await program.methods
-        .createCompanyProfile(companyName, companyBio)
-        .accounts({
-          owner: owner1.publicKey,
-          companyProfile: companyProfileAddress,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([owner1])
-        .rpc();
-
-      const firstRoundId = `round-${Date.now().toString().slice(-6)}`;
-      const targetAmount = new anchor.BN(750_000_000);
-      const interestRate = new anchor.BN(12);
-      const repaymentDeadline = new anchor.BN(
-        Math.floor(Date.now() / 1000) + 600_000
-      );
-      const firstFundingRoundAddress = getFundingRoundAddress(
-        companyProfileAddress,
-        firstRoundId,
-        program.programId
-      );
-      const firstVaultAddress = getFundingRoundVaultAddress(
-        companyProfileAddress,
-        firstRoundId,
-        program.programId
-      );
-
-      await program.methods
-        .createFundingRound(
-          firstRoundId,
-          targetAmount,
-          interestRate,
-          repaymentDeadline
-        )
-        .accounts({
-          owner: owner1.publicKey,
-          companyProfile: companyProfileAddress,
-          fundingRound: firstFundingRoundAddress,
-          vault: firstVaultAddress,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([owner1])
-        .rpc();
-
-      const duplicateRoundId = `${firstRoundId}-dup`;
+      // beforeEach already created a funding round, so try to create another one
+      const duplicateRoundId = `${bobsRoundId}-dup`;
       const duplicateFundingRoundAddress = getFundingRoundAddress(
-        companyProfileAddress,
+        bobsCompanyProfileAddress,
         duplicateRoundId,
         program.programId
       );
       const duplicateVaultAddress = getFundingRoundVaultAddress(
-        companyProfileAddress,
+        bobsCompanyProfileAddress,
         duplicateRoundId,
         program.programId
       );
@@ -346,18 +318,18 @@ describe("open_venture", () => {
         await program.methods
           .createFundingRound(
             duplicateRoundId,
-            targetAmount,
-            interestRate,
-            repaymentDeadline
+            bobsTargetAmount,
+            bobsInterestRate,
+            bobsRepaymentDeadline
           )
           .accounts({
-            owner: owner1.publicKey,
-            companyProfile: companyProfileAddress,
+            owner: bob.publicKey,
+            companyProfile: bobsCompanyProfileAddress,
             fundingRound: duplicateFundingRoundAddress,
             vault: duplicateVaultAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
           })
-          .signers([owner1])
+          .signers([bob])
           .rpc();
       } catch (error) {
         const err = anchor.AnchorError.parse(error.logs);
@@ -373,78 +345,27 @@ describe("open_venture", () => {
     });
 
     it("allows any wallet to deposit into the funding round vault", async () => {
-      const companyName = `Deposit Co ${Date.now().toString().slice(-6)}`;
-      const companyBio = "Deposit test";
-      const companyProfileAddress = getCompanyProfileAddress(
-        owner1.publicKey,
-        companyName,
-        program.programId
-      );
-      await program.methods
-        .createCompanyProfile(companyName, companyBio)
-        .accounts({
-          owner: owner1.publicKey,
-          companyProfile: companyProfileAddress,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([owner1])
-        .rpc();
-
-      const roundId = `round-${Date.now().toString().slice(-6)}`;
-      const targetAmount = new anchor.BN(300_000_000);
-      const interestRate = new anchor.BN(9);
-      const repaymentDeadline = new anchor.BN(
-        Math.floor(Date.now() / 1000) + 900_000
-      );
-      const fundingRoundAddress = getFundingRoundAddress(
-        companyProfileAddress,
-        roundId,
-        program.programId
-      );
-      const vaultAddress = getFundingRoundVaultAddress(
-        companyProfileAddress,
-        roundId,
-        program.programId
-      );
-
-      await program.methods
-        .createFundingRound(
-          roundId,
-          targetAmount,
-          interestRate,
-          repaymentDeadline
-        )
-        .accounts({
-          owner: owner1.publicKey,
-          companyProfile: companyProfileAddress,
-          fundingRound: fundingRoundAddress,
-          vault: vaultAddress,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([owner1])
-        .rpc();
-
       await airdrop(investor.publicKey);
 
       const depositAmount = new anchor.BN(150_000_000);
       const initialVaultBalance = await program.provider.connection.getBalance(
-        vaultAddress
+        bobsVaultAddress
       );
 
       await program.methods
         .fundCompany(depositAmount)
         .accounts({
           investor: investor.publicKey,
-          companyProfile: companyProfileAddress,
-          fundingRound: fundingRoundAddress,
-          vault: vaultAddress,
+          companyProfile: bobsCompanyProfileAddress,
+          fundingRound: bobsFundingRoundAddress,
+          vault: bobsVaultAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
         })
         .signers([investor])
         .rpc();
 
       const finalVaultBalance = await program.provider.connection.getBalance(
-        vaultAddress
+        bobsVaultAddress
       );
       assert.strictEqual(
         finalVaultBalance - initialVaultBalance,
