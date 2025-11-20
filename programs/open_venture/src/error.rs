@@ -34,4 +34,10 @@ pub enum ErrorCode {
     WithdrawalAmountMustBeGreaterThanZero,
     #[msg("Insufficient funds in vault")]
     InsufficientVaultFunds,
+    #[msg("Repayment amount must be greater than zero")]
+    RepaymentAmountMustBeGreaterThanZero,
+    #[msg("Repayment amount exceeds target amount")]
+    RepaymentAmountExceedsTargetAmount,
+    #[msg("Math overflow")]
+    MathOverflow,
 }

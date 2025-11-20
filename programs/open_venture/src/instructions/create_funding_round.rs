@@ -84,5 +84,14 @@ pub struct CreateFundingRound<'info> {
         bump,
     )]
     pub vault: AccountInfo<'info>,
+    /// CHECK: Repayment vault PDA stores repaid funds and is derived from company profile + round id
+    #[account(
+        init,
+        payer = owner,
+        space = 0,
+        seeds = ["funding_round_repayment".as_bytes(), company_profile.key().as_ref(), {hash(round_id.as_bytes()).to_bytes().as_ref()}],
+        bump,
+    )]
+    pub repayment_vault: AccountInfo<'info>,
     pub system_program: Program<'info, System>,
 }

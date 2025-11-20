@@ -48,4 +48,8 @@ pub mod open_venture {
     pub fn withdraw_funds(ctx: Context<WithdrawFunds>, amount: u64) -> Result<()> {
         instructions::withdraw_funds::handler(ctx, amount)
     }
+
+    pub fn repay_funding_round(ctx: Context<RepayFundingRound>, amount: u64) -> Result<()> {
+        instructions::repay_funding_round::handler(ctx, amount)
+    }
 }

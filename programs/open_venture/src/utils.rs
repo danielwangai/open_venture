@@ -95,3 +95,35 @@ pub fn validate_company_treasury_access(
     Ok(())
 }
 
+/// Validates that only the company owner can access the funding round repayment vault.
+pub fn validate_repayment_vault_access(
+    owner: &Signer,
+    company_profile: &Account<CompanyProfile>,
+    funding_round_id: &str,
+    repayment_vault: &AccountInfo,
+    program_id: &Pubkey,
+) -> Result<()> {
+    require!(
+        owner.key() == company_profile.owner,
+        ErrorCode::UnauthorizedVaultAccess
+    );
+
+    // derive repayment vault PDA
+    let company_profile_key = company_profile.key();
+    let round_id_hash = hash(funding_round_id.as_bytes());
+    let round_id_seed = round_id_hash.to_bytes();
+    // repayment vault seeds
+    let seeds = &[
+        b"funding_round_repayment".as_ref(),
+        company_profile_key.as_ref(),
+        round_id_seed.as_ref(),
+    ];
+    let (expected_vault, _) = Pubkey::find_program_address(seeds, program_id);
+
+    require!(
+        repayment_vault.key() == expected_vault,
+        ErrorCode::UnauthorizedVaultAccess
+    );
+
+    Ok(())
+}

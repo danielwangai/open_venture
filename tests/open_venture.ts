@@ -69,7 +69,7 @@ describe("open_venture", () => {
           companyProfile: companyProfileAddress,
           companyTreasury: companyTreasuryAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
-        })
+        } as any)
         .signers([owner1])
         .rpc();
 
@@ -103,7 +103,7 @@ describe("open_venture", () => {
             companyProfile: companyProfileAddress,
             companyTreasury: companyTreasuryAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
-          })
+          } as any)
           .signers([owner1])
           .rpc();
       } catch (error) {
@@ -136,7 +136,7 @@ describe("open_venture", () => {
             owner: owner1.publicKey,
             companyProfile: companyProfileAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
-          })
+          } as any)
           .signers([owner1])
           .rpc();
       } catch (error) {
@@ -153,7 +153,7 @@ describe("open_venture", () => {
       );
     });
 
-    it("cannot create a company profile with empty name", async () => {
+    it("company owner cannot create a company profile with empty name", async () => {
       const companyName = "";
       const companyBio = "Test Bio";
 
@@ -172,7 +172,7 @@ describe("open_venture", () => {
             owner: owner1.publicKey,
             companyProfile: companyProfileAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
-          })
+          } as any)
           .signers([owner1])
           .rpc();
       } catch (error) {
@@ -206,7 +206,7 @@ describe("open_venture", () => {
             owner: owner1.publicKey,
             companyProfile: companyProfileAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
-          })
+          } as any)
           .signers([owner1])
           .rpc();
       } catch (error) {
@@ -236,6 +236,7 @@ describe("open_venture", () => {
     let bobsRepaymentDeadline: anchor.BN;
     let bobsFundingRoundAddress: PublicKey;
     let bobsVaultAddress: PublicKey;
+    let bobsRepaymentVaultAddress: PublicKey;
     let bobsCompanyTreasuryAddress: PublicKey;
 
     // investor
@@ -291,6 +292,11 @@ describe("open_venture", () => {
         bobsRoundId,
         program.programId
       );
+      bobsRepaymentVaultAddress = getFundingRoundRepaymentVaultAddress(
+        bobsCompanyProfileAddress,
+        bobsRoundId,
+        program.programId
+      );
 
       await program.methods
         .createFundingRound(
@@ -304,6 +310,7 @@ describe("open_venture", () => {
           companyProfile: bobsCompanyProfileAddress,
           fundingRound: bobsFundingRoundAddress,
           vault: bobsVaultAddress,
+          repaymentVault: bobsRepaymentVaultAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
         } as any)
         .signers([bob])
@@ -355,6 +362,11 @@ describe("open_venture", () => {
         duplicateRoundId,
         program.programId
       );
+      const duplicateRepaymentVaultAddress = getFundingRoundRepaymentVaultAddress(
+        bobsCompanyProfileAddress,
+        duplicateRoundId,
+        program.programId
+      );
 
       try {
         await program.methods
@@ -369,18 +381,23 @@ describe("open_venture", () => {
             companyProfile: bobsCompanyProfileAddress,
             fundingRound: duplicateFundingRoundAddress,
             vault: duplicateVaultAddress,
+            repaymentVault: duplicateRepaymentVaultAddress,
             systemProgram: anchor.web3.SystemProgram.programId,
-          })
+          } as any)
           .signers([bob])
           .rpc();
       } catch (error) {
-        const err = anchor.AnchorError.parse(error.logs);
-        assert.strictEqual(
-          err.error.errorCode.code,
-          "ActiveFundingRoundExists",
-          "expected duplicate funding round attempt to fail with ActiveFundingRoundExists"
-        );
-        return;
+        const logs = (error as anchor.AnchorError)?.logs;
+        const parsed = logs ? anchor.AnchorError.parse(logs) : null;
+        if (parsed) {
+          assert.strictEqual(
+            parsed.error.errorCode.code,
+            "ActiveFundingRoundExists",
+            "expected duplicate funding round attempt to fail with ActiveFundingRoundExists"
+          );
+          return;
+        }
+        throw error;
       }
 
       assert.fail("expected duplicate active funding round creation to fail");
@@ -402,7 +419,7 @@ describe("open_venture", () => {
           fundingRound: bobsFundingRoundAddress,
           vault: bobsVaultAddress,
           systemProgram: anchor.web3.SystemProgram.programId,
-        })
+        } as any)
         .signers([investor])
         .rpc();
 
@@ -441,6 +458,53 @@ describe("open_venture", () => {
       assert.strictEqual(
         BigInt(finalTreasuryBalance),
         BigInt(initialTreasuryBalance) + BigInt(withdrawalAmount.toNumber())
+      );
+    });
+
+    it("allows the company owner to repay the funding round with interest", async () => {
+      // compute total repayment (target * (1 + interest/100))
+      const hundred = new anchor.BN(100);
+      const totalWithInterest = bobsTargetAmount
+        .mul(hundred.add(bobsInterestRate))
+        .div(hundred);
+      const totalWithInterestBigInt = BigInt(totalWithInterest.toString());
+
+      // ensure treasury has enough lamports to repay
+      await airdrop(bobsCompanyTreasuryAddress, totalWithInterest);
+
+      const initialTreasuryBalance = await program.provider.connection.getBalance(
+        bobsCompanyTreasuryAddress
+      );
+      const initialRepaymentBalance = await program.provider.connection.getBalance(
+        bobsRepaymentVaultAddress
+      );
+
+      await program.methods
+        .repayFundingRound(totalWithInterest)
+        .accounts({
+          owner: bob.publicKey,
+          companyProfile: bobsCompanyProfileAddress,
+          fundingRound: bobsFundingRoundAddress,
+          companyTreasury: bobsCompanyTreasuryAddress,
+          repaymentVault: bobsRepaymentVaultAddress,
+        } as any)
+        .signers([bob])
+        .rpc();
+
+      const finalTreasuryBalance = await program.provider.connection.getBalance(
+        bobsCompanyTreasuryAddress
+      );
+      const finalRepaymentBalance = await program.provider.connection.getBalance(
+        bobsRepaymentVaultAddress
+      );
+
+      assert.strictEqual(
+        BigInt(initialTreasuryBalance) - BigInt(finalTreasuryBalance),
+        totalWithInterestBigInt
+      );
+      assert.strictEqual(
+        BigInt(finalRepaymentBalance) - BigInt(initialRepaymentBalance),
+        totalWithInterestBigInt
       );
     });
   });
@@ -511,6 +575,27 @@ describe("open_venture", () => {
     return PublicKey.findProgramAddressSync(
       [
         anchor.utils.bytes.utf8.encode("funding_round_vault"),
+        companyProfileAddress.toBuffer(),
+        roundIdSeed,
+      ],
+      programID
+    )[0];
+  };
+
+  const getFundingRoundRepaymentVaultAddress = (
+    companyProfileAddress: PublicKey,
+    id: string,
+    programID: PublicKey
+  ) => {
+    const hexString = crypto
+      .createHash("sha256")
+      .update(id, "utf-8")
+      .digest("hex");
+    const roundIdSeed = Uint8Array.from(Buffer.from(hexString, "hex"));
+
+    return PublicKey.findProgramAddressSync(
+      [
+        anchor.utils.bytes.utf8.encode("funding_round_repayment"),
         companyProfileAddress.toBuffer(),
         roundIdSeed,
       ],
